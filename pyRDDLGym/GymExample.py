@@ -1,4 +1,5 @@
-import sys
+import sys,os
+sys.path.append(os.getcwd())
 
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     method_name = None
     episodes = 1
     if len(args) < 3:
-        env, inst = 'traffic', '0'
+        env, inst = 'Traffic', '0'
     elif len(args) < 4:
         env, inst = args[1:3]
     elif len(args) < 5:
