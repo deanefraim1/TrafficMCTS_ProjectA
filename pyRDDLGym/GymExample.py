@@ -1,5 +1,4 @@
-import sys,os
-sys.path.append(os.getcwd())
+import sys
 
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
