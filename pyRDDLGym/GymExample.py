@@ -57,7 +57,7 @@ if __name__ == "__main__":
     method_name = None
     episodes = 1
     if len(args) < 3:
-        env, inst = 'HVAC', '0'
+        env, inst = 'traffic', '0'
     elif len(args) < 4:
         env, inst = args[1:3]
     elif len(args) < 5:
