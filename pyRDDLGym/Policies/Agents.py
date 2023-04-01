@@ -51,7 +51,7 @@ class MCTSAgent(BaseAgent):
         if seed is not None:
             self.action_space.seed(seed)
 
-    def sample_action(self, state=None):
+    def sample_action(self, state):
         s = self.action_space.sample()
         action = {}
         return action
