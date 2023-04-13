@@ -6,6 +6,7 @@ import gym
 
 TIME_TO_MCTS = 5
 TIME_TO_ROLLOUT = 1
+C_UCB_PARAM = np.sqrt(2)
 
 class BaseAgent(metaclass=ABCMeta):
 
@@ -86,12 +87,12 @@ class MonteCarloTreeSearchNode():
         self.number_of_visits = 0
         self.score = 0
         self.untried_actions = action_space
-        self.action_space = action_space
+        self.possible_actions = action_space
         return
     
     def expand(self):
         action = self.untried_actions.pop()
-        next_state = self.state.step(action)
+        next_state, reward, done, info = self.state.step(action)
         child_node = MonteCarloTreeSearchNode(next_state, self.action_space, parent=self, parent_action=action)
         self.children.append(child_node)
         return child_node 
@@ -99,12 +100,26 @@ class MonteCarloTreeSearchNode():
     def rollout(self):
         current_rollout_state = self.state
         time_left = TIME_TO_ROLLOUT
-        while time_left > 0:
-            possible_moves = self.action_space
-            
-            action = self.rollout_policy(possible_moves)
-            current_rollout_state = current_rollout_state.step(action)
-        return current_rollout_state.score
+        total_reward = 0
+        while time_left > 0:            
+            action = self._rollout_policy(self.possible_actions)
+            current_rollout_state, reward, done, info  = current_rollout_state.step(action)
+            total_reward += reward
+        return total_reward
     
-    def rollout_policy(self, possible_moves):
-        return random.choice(possible_moves)
+    def backpropagate(self, result):
+        self.number_of_visits += 1
+        self.score += result
+        if self.parent:
+            self.parent.backpropagate(result)
+
+    def is_fully_expanded(self):
+        return len(self.untried_actions) == 0
+    
+    def best_child(self, c_param=0.1):
+    
+        choices_weights = [(c.score / c.number_of_visits) + C_UCB_PARAM * np.sqrt((2 * np.log(self.number_of_visits) / c.number_of_visits)) for c in self.children]
+        return self.children[np.argmax(choices_weights)]
+    
+    def _rollout_policy(self, possible_actions):   
+        return possible_actions[np.random.randint(len(possible_actions))]
