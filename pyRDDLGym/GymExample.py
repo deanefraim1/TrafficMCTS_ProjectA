@@ -28,7 +28,9 @@ def main(env, inst, method_name=None, episodes=1):
                         # movie_gen=MovieGenerator(frames_path, ENV, 200), movie_per_episode=True)
     
     # set up an example aget
-    agent = MCTSAgent(action_space=myEnv.action_space, 
+    #agent = MCTSAgent(action_space=myEnv.action_space, 
+                        #num_actions=myEnv.numConcurrentActions)
+    agent = RandomAgent(action_space=myEnv.action_space, 
                         num_actions=myEnv.numConcurrentActions)
 
     for episode in range(episodes):
