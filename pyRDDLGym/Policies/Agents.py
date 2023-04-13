@@ -106,7 +106,7 @@ class MonteCarloTreeSearchNode():
     def n(self):
         return self._number_of_visits
     
-    def expand(self):
+    def expand(self): #NOTE Alon commend: i think that when we expand in our version we have to do this iteration twice once for each action.
         action = self._untried_actions.pop()
         next_state = self.state.move(action)
         child_node = MonteCarloTreeSearchNode(next_state, parent=self, parent_action=action)
@@ -116,7 +116,7 @@ class MonteCarloTreeSearchNode():
     def is_terminal_node(self):
         return self.state.is_game_over() 
     
-    def rollout(self):
+    def rollout(self): #NOTE Alon commend: on the rollout i think that game over sould be how much iterarions in the futer we decided to do and if we passed that number game result sould be function of (how many cars have passed,some how much the junction busy)
         current_rollout_state = self.state  
         while not current_rollout_state.is_game_over():
             possible_moves = current_rollout_state.get_legal_actions()
@@ -130,7 +130,7 @@ class MonteCarloTreeSearchNode():
         if self.parent:
             self.parent.backpropagate(result)
 
-    def is_fully_expanded(self):
+    def is_fully_expanded(self): #NOTE Alon commend: on our case 2
         return len(self._untried_actions) == 0
     
     def best_child(self, c_param=0.1):
