@@ -3,9 +3,11 @@ import random
 import numpy as np
 from collections import defaultdict
 import gym
+from pyRDDLGym import RDDLEnv
+from pyRDDLGym import ExampleManager
 
-TIME_TO_MCTS = 5
-TIME_TO_ROLLOUT = 1
+MCTS_FACTOR = 40
+ROLLOUT_FACTOR = 10
 C_UCB_PARAM = np.sqrt(2)
 
 class BaseAgent(metaclass=ABCMeta):
@@ -77,64 +79,59 @@ class MCTSAgent(BaseAgent):
         #NOTE - signal-t___i0 => the time that the intersection i0 has been in the current signal state, when 0<=i<=7
         #NOTE - len() => 
         root = MonteCarloTreeSearchNode(state = initial_state)
-        selected_node = root.best_action().parent_action
+        return root.best_action().parent_action
 
 class MonteCarloTreeSearchNode():
-    def __init__(self, state, parent=None, parent_action=None):
-        self.state = state
-        self.parent = parent
-        self.parent_action = parent_action
+    def __init__(self, env, inst, state, action_space, score = 0, _is_terminal_node = False, parent=None, parent_action=None):
+        EnvInfo = ExampleManager.GetEnvInfo(env)
+        self._myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
+                            instance=EnvInfo.get_instance(inst),
+                            enforce_action_constraints=False,
+                            debug=False,
+                            log=False)
+        self._inst = inst
+        self._state = state
+        self._parent = parent
+        self._parent_action = parent_action
         self.children = []
         self._number_of_visits = 0
-        self._results = defaultdict(int)
-        self._results[1] = 0
-        self._results[-1] = 0
-        self._untried_actions = None
-        self._untried_actions = self.untried_actions()
+        self._score = score
+        self._untried_actions = action_space
+        self._action_space = action_space
+        self._is_terminal_node = _is_terminal_node
         return
     
-    def untried_actions(self):
-
-        self._untried_actions = self.state.get_legal_actions()
-        return self._untried_actions
-    
-    def q(self):
-        wins = self._results[1]
-        loses = self._results[-1]
-        return wins - loses
-    
-    def n(self):
-        return self._number_of_visits
-    
-    def expand(self): #NOTE Alon commend: i think that when we expand in our version we have to do this iteration twice once for each action.
+    def expand(self):
         action = self._untried_actions.pop()
-        next_state = self.state.move(action)
-        child_node = MonteCarloTreeSearchNode(next_state, parent=self, parent_action=action)
+        new_env = self._myEnv
+        next_state, reward, done, info = new_env.step(action)
+        child_node = MonteCarloTreeSearchNode(new_env, self._inst, next_state, self._action_space, reward, done, parent=self, parent_action=action)
         self.children.append(child_node)
         return child_node
 
     def is_terminal_node(self):
-        return self.state.is_game_over() 
+        return self._is_terminal_node or self.time_remaining == 0
     
-    def rollout(self): #NOTE Alon commend: on the rollout i think that game over sould be how much iterarions in the futer we decided to do and if we passed that number game result sould be function of (how many cars have passed,some how much the junction busy)
-        current_rollout_state = self.state  
-        while not current_rollout_state.is_game_over():
-            possible_moves = current_rollout_state.get_legal_actions()
-            action = self.rollout_policy(possible_moves)
-            current_rollout_state = current_rollout_state.move(action)
-        return current_rollout_state.game_result()
+    def rollout(self):
+        current_myEnv = self._myEnv
+        final_reward = 0
+        for i in range(ROLLOUT_FACTOR):
+            action = self.rollout_policy(self._action_space)
+            current_rollout_state, reward, done, info = current_myEnv.step(action)
+            final_reward += reward
+        return final_reward
     
     def backpropagate(self, result):
         self._number_of_visits += 1.
-        self._results[result] += 1.
+        self._score += result
         if self.parent:
             self.parent.backpropagate(result)
 
-    def is_fully_expanded(self): #NOTE Alon commend: on our case 2
+    def is_fully_expanded(self):
         return len(self._untried_actions) == 0
     
-    def best_child(self, c_param=0.1):
-        choices_weights = [(c.q() / c.n()) + c_param * np.sqrt((2 * np.log(self.n()) / c.n())) for c in self.children]
+    def best_child(self, c_ucb_param = C_UCB_PARAM): # add act when number of visits is 0
+        choices_weights = [(c._score / c._number_of_visits) + c_ucb_param * np.sqrt((2 * np.log(self._number_of_visits) / c._number_of_visits)) for c in self.children]
         return self.children[np.argmax(choices_weights)]
     
     def rollout_policy(self, possible_moves):
@@ -142,56 +139,15 @@ class MonteCarloTreeSearchNode():
     
     def _tree_policy(self):
         current_node = self
-        while not current_node.is_terminal_node():
+        while True:
             if not current_node.is_fully_expanded():
                 return current_node.expand()
             else:
                 current_node = current_node.best_child()
-        return current_node
     
     def best_action(self):
-        simulation_no = 100
-        for i in range(simulation_no):    
+        for i in range(MCTS_FACTOR):    
             v = self._tree_policy()
             reward = v.rollout()
             v.backpropagate(reward)
-        return self.best_child(c_param=0.)
-    
-    def get_legal_actions(self): 
-        '''
-        Modify according to your game or
-        needs. Constructs a list of all
-        possible actions from current state.
-        Returns a list.
-        '''
-
-    def is_game_over(self):
-        '''
-        Modify according to your game or 
-        needs. It is the game over condition
-        and depends on your game. Returns
-        true or false
-        '''
-
-    def game_result(self):
-        '''
-        Modify according to your game or 
-        needs. Returns 1 or 0 or -1 depending
-        on your state corresponding to win,
-        tie or a loss.
-        '''
-
-    def move(self,action):
-        '''
-        Modify according to your game or 
-        needs. Changes the state of your 
-        board with a new value. For a normal
-        Tic Tac Toe game, it can be a 3 by 3
-        array with all the elements of array
-        being 0 initially. 0 means the board 
-        position is empty. If you place x in
-        row 2 column 3, then it would be some 
-        thing like board[2][3] = 1, where 1
-        represents that x is placed. Returns 
-        the new state after making a move.
-        '''
+        return self.best_child()

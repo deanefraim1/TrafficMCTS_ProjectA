@@ -76,7 +76,7 @@ class RDDLEnv(gym.Env):
             self.simlogger.clear(overwrite=False)
         
         # define the model sampler and bounds    
-        self.sampler = backend(self.model, logger=logger)
+        self.sampler = backend(self.model, logger=logger) #NOTE - what is this?
         bounds = RDDLConstraints(self.sampler).bounds
 
         # set roll-out parameters
