@@ -81,12 +81,12 @@ class MonteCarloTreeSearchNode():
         self.number_of_visits = 0
         self.score = 0
         #TODO - create a full mask Dict at first
-        self.__untried_actions_mask = {action: True for action in action_space}
+        self.__untried_actions_mask = Dict()
         self.__action_space = action_space
         return
     
     def expand(self):
-        action = self.__action_space.sample(self.__untried_actions_mask) #TODO - find a way to pop a random item from the ordered dict of spaces
+        action = self.__action_space.sample(self.__untried_actions_mask)
         #TODO - add the action to the mask
         self.__untried_actions_mask[action] = False
         new_env = self.__myEnv
@@ -116,10 +116,18 @@ class MonteCarloTreeSearchNode():
 
     def is_fully_expanded(self):
         #TODO - check if the mask is full with false
-        return not self.__untried_actions_mask.any()
+        for action_mask in self.__untried_actions_mask.items():
+            if(action_mask == True):
+                return False
+        return True
     
-    def best_child(self, c_ucb_param = C_UCB_PARAM): # add act when number of visits is 0
-        choices_weights = [(child.score / child.number_of_visits) + c_ucb_param * np.sqrt((2 * np.log(self.number_of_visits) / child.number_of_visits)) for child in self.__children]
+    def best_child(self, c_ucb_param = C_UCB_PARAM):
+        choices_weights = []
+        for child in self.__children:
+            if child.number_of_visits == 0:
+                return child
+            else:
+                choices_weights.append((child.score / child.number_of_visits) + c_ucb_param * np.sqrt((2 * np.log(self.number_of_visits) / child.number_of_visits)))
         return self.__children[np.argmax(choices_weights)]
     
     def __rollout_policy(self, possible_moves):
