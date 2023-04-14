@@ -1,10 +1,8 @@
 from abc import ABCMeta, abstractmethod
 import random
 import numpy as np
-from collections import defaultdict
+from gym.spaces import Dict
 import gym
-from pyRDDLGym import RDDLEnv
-from pyRDDLGym import ExampleManager
 
 MCTS_FACTOR = 40
 ROLLOUT_FACTOR = 10
@@ -24,7 +22,7 @@ class RandomAgent(BaseAgent):
         if seed is not None:
             self.action_space.seed(seed)
 
-    def sample_action(self, state=None, env=None):
+    def sample_action(self, env=None):
         s = self.action_space.sample()
         action = {}
         selected_actions = random.sample(list(s), self.num_actions)
@@ -57,10 +55,10 @@ class MCTSAgent(BaseAgent):
         if seed is not None:
             self.action_space.seed(seed)
 
-    def sample_action(self, state, env):
-        s = self.action_space.sample()
+    def sample_action(self, env):
+        s = self.__GetActionWithMCTS__(env)
         action = {}
-        selected_actions = self.__GetActionWithMCTS(state, env)
+        selected_actions = random.sample(list(s), self.num_actions)
         #NOTE - what we need the for loop for?
         for sample in selected_actions:
             if isinstance(self.action_space[sample], gym.spaces.Box):
@@ -69,65 +67,65 @@ class MCTSAgent(BaseAgent):
                 action[sample] = s[sample]
         return action
     
-    def __GetActionWithMCTS(self, initial_state, env):
+    def __GetActionWithMCTS__(self, env):
         root = MonteCarloTreeSearchNode(env = env,
-                                        state = initial_state,
                                         action_space = self.action_space)
         return root.best_action()
 
 class MonteCarloTreeSearchNode():
-    def __init__(self, env, state, action_space, score = 0, parent=None, parent_action=None):
-        self._myEnv = env
-        self._state = state
-        self._parent = parent
-        self._parent_action = parent_action
-        self.children = []
-        self._number_of_visits = 0
-        self._score = score
-        self._untried_actions = action_space
-        self._action_space = action_space
+    def __init__(self, env, action_space, parent=None, parent_action=None):
+        self.__myEnv = env
+        self.__parent = parent
+        self.parent_action = parent_action
+        self.__children = []
+        self.number_of_visits = 0
+        self.score = 0
+        #TODO - create a full mask Dict at first
+        self.__untried_actions_mask = {action: True for action in action_space}
+        self.__action_space = action_space
         return
     
     def expand(self):
-        action = self._untried_actions.pop_random_action() #TODO - find a way to pop a random item from the ordered dict of spaces
-        new_env = self._myEnv
+        action = self.__action_space.sample(self.__untried_actions_mask) #TODO - find a way to pop a random item from the ordered dict of spaces
+        #TODO - add the action to the mask
+        self.__untried_actions_mask[action] = False
+        new_env = self.__myEnv
         next_state, reward, done, info = new_env.step(action)
         child_node = MonteCarloTreeSearchNode(env = new_env,
-                                              state = next_state,
-                                              action_space = self._action_space, 
-                                              score = reward, 
-                                              is_terminal_node = done, 
+                                              action_space = self.__action_space,  
                                               parent=self, 
                                               parent_action=action)
-        self.children.append(child_node)
+        child_node.backpropagate(reward)
+        self.__children.append(child_node)
         return child_node
     
     def rollout(self):
-        current_myEnv = self._myEnv
+        current_myEnv = self.__myEnv
         final_reward = 0
         for i in range(ROLLOUT_FACTOR):
-            action = self.rollout_policy(self._action_space)
+            action = self.__rollout_policy(self.__action_space)
             current_rollout_state, reward, done, info = current_myEnv.step(action)
             final_reward += reward
         return final_reward
     
     def backpropagate(self, result):
-        self._number_of_visits += 1.
-        self._score += result
-        if self.parent:
-            self.parent.backpropagate(result)
+        self.number_of_visits += 1
+        self.score += result
+        if self.__parent:
+            self.__parent.backpropagate(result)
 
     def is_fully_expanded(self):
-        return len(self._untried_actions) == 0
+        #TODO - check if the mask is full with false
+        return not self.__untried_actions_mask.any()
     
     def best_child(self, c_ucb_param = C_UCB_PARAM): # add act when number of visits is 0
-        choices_weights = [(c._score / c._number_of_visits) + c_ucb_param * np.sqrt((2 * np.log(self._number_of_visits) / c._number_of_visits)) for c in self.children]
-        return self.children[np.argmax(choices_weights)]
+        choices_weights = [(child.score / child.number_of_visits) + c_ucb_param * np.sqrt((2 * np.log(self.number_of_visits) / child.number_of_visits)) for child in self.__children]
+        return self.__children[np.argmax(choices_weights)]
     
-    def rollout_policy(self, possible_moves):
-        return possible_moves[np.random.randint(len(possible_moves))]
+    def __rollout_policy(self, possible_moves):
+        return possible_moves.sample()
     
-    def _tree_policy(self):
+    def __tree_policy(self):
         current_node = self
         while True:
             if not current_node.is_fully_expanded():
@@ -137,7 +135,7 @@ class MonteCarloTreeSearchNode():
     
     def best_action(self):
         for i in range(MCTS_FACTOR):    
-            v = self._tree_policy()
+            v = self.__tree_policy()
             reward = v.rollout()
             v.backpropagate(reward)
         return self.best_child().parent_action

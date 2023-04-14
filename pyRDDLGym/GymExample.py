@@ -28,17 +28,17 @@ def main(env, inst, method_name=None, episodes=1):
                         # movie_gen=MovieGenerator(frames_path, ENV, 200), movie_per_episode=True)
     
     # set up an example aget
-    #agent = MCTSAgent(action_space=myEnv.action_space, 
-                        #num_actions=myEnv.numConcurrentActions)
-    agent = RandomAgent(action_space=myEnv.action_space, 
+    agent = MCTSAgent(action_space=myEnv.action_space, 
                         num_actions=myEnv.numConcurrentActions)
+    #agent = RandomAgent(action_space=myEnv.action_space, 
+                        #num_actions=myEnv.numConcurrentActions)
 
     for episode in range(episodes):
         total_reward = 0
         state = myEnv.reset()
         for step in range(myEnv.horizon):
             myEnv.render()
-            action = agent.sample_action(state, myEnv)
+            action = agent.sample_action(myEnv)
             next_state, reward, done, info = myEnv.step(action)
             total_reward += reward
             print()
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     method_name = None
     episodes = 1
     if len(args) < 3:
-        env, inst = 'Traffic', '1'
+        env, inst = 'Traffic', '0'
     elif len(args) < 4:
         env, inst = args[1:3]
     elif len(args) < 5:
