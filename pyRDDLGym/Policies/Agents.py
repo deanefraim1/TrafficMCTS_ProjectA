@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 import random
 import numpy as np
 from gym.spaces import Dict
+from gym.spaces import MultiBinary
 import gym
 
 MCTS_FACTOR = 40
@@ -81,14 +82,16 @@ class MonteCarloTreeSearchNode():
         self.number_of_visits = 0
         self.score = 0
         #TODO - create a full mask Dict at first
-        self.__untried_actions_mask =
+        self.__untried_actions_mask = Dict()
+        for space in action_space.spaces:
+            self.__untried_actions_mask[space] = MultiBinary(action_space[space].n)
         self.__action_space = action_space
         return
     
     def expand(self):
         action = self.__action_space.sample(self.__untried_actions_mask)
         #TODO - add the action to the mask
-        self.__untried_actions_mask[action] = 
+
         new_env = self.__myEnv
         next_state, reward, done, info = new_env.step(action)
         child_node = MonteCarloTreeSearchNode(env = new_env,
@@ -116,7 +119,10 @@ class MonteCarloTreeSearchNode():
 
     def is_fully_expanded(self):
         #TODO - check if the mask is full with false
-        return NotImplementedError
+        for space in self.__untried_actions_mask.spaces:
+            if self.__untried_actions_mask[space].contains(1):
+                return False
+        return True
     
     def best_child(self, c_ucb_param = C_UCB_PARAM):
         choices_weights = []
