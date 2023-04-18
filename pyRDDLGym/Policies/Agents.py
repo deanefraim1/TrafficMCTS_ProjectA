@@ -5,9 +5,9 @@ from gym.spaces import Dict
 from gym.spaces import MultiBinary
 import gym
 
-MCTS_FACTOR = 40
-ROLLOUT_FACTOR = 10
-C_UCB_PARAM = np.sqrt(2)
+MCTS_FACTOR = 40 # send to agent init
+ROLLOUT_FACTOR = 10 # send to agent init
+C_UCB_PARAM = np.sqrt(2) # send to agent init
 
 class BaseAgent(metaclass=ABCMeta):
 
@@ -57,7 +57,7 @@ class MCTSAgent(BaseAgent):
             self.action_space.seed(seed)
 
     def sample_action(self, env):
-        s = self.__GetActionWithMCTS__(env)
+        s = self.__GetActionWithMCTS(env)
         action = {}
         selected_actions = random.sample(list(s), self.num_actions)
         #NOTE - what we need the for loop for?
@@ -68,7 +68,7 @@ class MCTSAgent(BaseAgent):
                 action[sample] = s[sample]
         return action
     
-    def __GetActionWithMCTS__(self, env):
+    def __GetActionWithMCTS(self, env):
         root = MonteCarloTreeSearchNode(env = env,
                                         action_space = self.action_space)
         return root.best_action()
@@ -83,15 +83,17 @@ class MonteCarloTreeSearchNode():
         self.score = 0
         #TODO - create a full mask Dict at first
         self.__untried_actions_mask = Dict()
-        for space in action_space.spaces:
-            self.__untried_actions_mask[space] = MultiBinary(action_space[space].n)
+        #for space in action_space.spaces:
+            #self.__untried_actions_mask[space] = np.ones(shape = action_space[space].n, dtype=np.int8)
+            #for i in range(action_space[space].n):
+                #self.__untried_actions_mask[space][i] = 1
         self.__action_space = action_space
         return
     
     def expand(self):
         action = self.__action_space.sample(self.__untried_actions_mask)
         #TODO - add the action to the mask
-
+        self.__untried_actions_mask[action] = 0
         new_env = self.__myEnv
         next_state, reward, done, info = new_env.step(action)
         child_node = MonteCarloTreeSearchNode(env = new_env,
@@ -130,7 +132,7 @@ class MonteCarloTreeSearchNode():
             if child.number_of_visits == 0:
                 return child
             else:
-                choices_weights.append((child.score / child.number_of_visits) + c_ucb_param * np.sqrt((2 * np.log(self.number_of_visits) / child.number_of_visits)))
+                choices_weights.append((child.score / child.number_of_visits) + c_ucb_param * np.sqrt((2 * np.log(self.number_of_visits) / child.number_of_visits))) # make a function
         return self.__children[np.argmax(choices_weights)]
     
     def __rollout_policy(self, possible_moves):
