@@ -4,9 +4,12 @@ import numpy as np
 from gym.spaces import Dict
 from gym.spaces import MultiBinary
 import gym
+import copy
+from pyRDDLGym import RDDLEnv
+from pyRDDLGym import ExampleManager
 
-MCTS_FACTOR = 40 # send to agent init
-ROLLOUT_FACTOR = 10 # send to agent init
+MCTS_FACTOR = 2 # send to agent init
+ROLLOUT_FACTOR = 1 # send to agent init
 C_UCB_PARAM = np.sqrt(2) # send to agent init
 
 class BaseAgent(metaclass=ABCMeta):
@@ -60,7 +63,6 @@ class MCTSAgent(BaseAgent):
         s = self.__GetActionWithMCTS(env)
         action = {}
         selected_actions = random.sample(list(s), self.num_actions)
-        #NOTE - what we need the for loop for?
         for sample in selected_actions:
             if isinstance(self.action_space[sample], gym.spaces.Box):
                 action[sample] = s[sample][0].item()
@@ -81,31 +83,37 @@ class MonteCarloTreeSearchNode():
         self.__children = []
         self.number_of_visits = 0
         self.score = 0
-        #TODO - create a full mask Dict at first
-        self.__untried_actions_mask = Dict()
-        #for space in action_space.spaces:
-            #self.__untried_actions_mask[space] = np.ones(shape = action_space[space].n, dtype=np.int8)
-            #for i in range(action_space[space].n):
-                #self.__untried_actions_mask[space][i] = 1
+
+        # TODO - should we use Dict?
+        self.__untried_actions = [0,1]
+
         self.__action_space = action_space
         return
     
     def expand(self):
-        action = self.__action_space.sample(self.__untried_actions_mask)
-        #TODO - add the action to the mask
-        self.__untried_actions_mask[action] = 0
-        new_env = self.__myEnv
-        next_state, reward, done, info = new_env.step(action)
+        #TODO - how can we remove the action we already tried?
+        action = self.__untried_actions.pop()
+
+        EnvInfo = ExampleManager.GetEnvInfo("Traffic")
+        new_env = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
+                            instance=EnvInfo.get_instance(0))
+        new_env.sampler.subs = copy.deepcopy(self.__myEnv.sampler.subs)
+
+        next_state, reward, done, info = new_env.step({'advance___i0': action})
         child_node = MonteCarloTreeSearchNode(env = new_env,
                                               action_space = self.__action_space,  
                                               parent=self, 
-                                              parent_action=action)
+                                              parent_action={'advance___i0': action})
         child_node.backpropagate(reward)
         self.__children.append(child_node)
         return child_node
     
     def rollout(self):
-        current_myEnv = self.__myEnv
+        EnvInfo = ExampleManager.GetEnvInfo("Traffic")
+        current_myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
+                            instance=EnvInfo.get_instance(0))
+        current_myEnv.sampler.subs = copy.deepcopy(self.__myEnv.sampler.subs)
+
         final_reward = 0
         for i in range(ROLLOUT_FACTOR):
             action = self.__rollout_policy(self.__action_space)
@@ -120,11 +128,9 @@ class MonteCarloTreeSearchNode():
             self.__parent.backpropagate(result)
 
     def is_fully_expanded(self):
-        #TODO - check if the mask is full with false
-        for space in self.__untried_actions_mask.spaces:
-            if self.__untried_actions_mask[space].contains(1):
-                return False
-        return True
+
+        #TODO - is this the right way to check if the node is fully expanded?
+        return len(self.__untried_actions) == 0
     
     def best_child(self, c_ucb_param = C_UCB_PARAM):
         choices_weights = []
@@ -132,11 +138,14 @@ class MonteCarloTreeSearchNode():
             if child.number_of_visits == 0:
                 return child
             else:
-                choices_weights.append((child.score / child.number_of_visits) + c_ucb_param * np.sqrt((2 * np.log(self.number_of_visits) / child.number_of_visits))) # make a function
+                choices_weights.append(child.__UCB1(c_ucb_param)) # TODO - why __UCB1 is not recognized?
         return self.__children[np.argmax(choices_weights)]
     
+    def __UCB1(self, c_ucb_param):
+        return (self.score / self.number_of_visits) + c_ucb_param * np.sqrt((2 * np.log(self.__parent.number_of_visits) / self.number_of_visits))
+
     def __rollout_policy(self, possible_moves):
-        return possible_moves.sample()
+        return possible_moves.sample() # random move
     
     def __tree_policy(self):
         current_node = self
