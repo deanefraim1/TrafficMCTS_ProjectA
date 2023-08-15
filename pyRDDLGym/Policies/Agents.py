@@ -8,8 +8,8 @@ import copy
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
 
-MCTS_FACTOR = 2 # send to agent init
-ROLLOUT_FACTOR = 1 # send to agent init
+MCTS_FACTOR = 500 # send to agent init
+ROLLOUT_FACTOR = 60 # send to agent init
 C_UCB_PARAM = np.sqrt(2) # send to agent init
 
 class BaseAgent(metaclass=ABCMeta):
@@ -101,9 +101,9 @@ class MonteCarloTreeSearchNode():
 
         next_state, reward, done, info = new_env.step({'advance___i0': action})
         child_node = MonteCarloTreeSearchNode(env = new_env,
-                                              action_space = self.__action_space,  
-                                              parent=self, 
-                                              parent_action={'advance___i0': action})
+                                            action_space = self.__action_space,  
+                                            parent=self, 
+                                            parent_action={'advance___i0': action})
         child_node.backpropagate(reward)
         self.__children.append(child_node)
         return child_node
