@@ -8,8 +8,8 @@ import copy
 from pyRDDLGym import RDDLEnv
 from pyRDDLGym import ExampleManager
 
-MCTS_FACTOR = 500 # send to agent init
-ROLLOUT_FACTOR = 60 # send to agent init
+MCTS_FACTOR = 10 # send to agent init
+ROLLOUT_FACTOR = 5 # send to agent init
 C_UCB_PARAM = np.sqrt(2) # send to agent init
 
 class BaseAgent(metaclass=ABCMeta):
@@ -98,13 +98,14 @@ class MonteCarloTreeSearchNode():
         new_env = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
                             instance=EnvInfo.get_instance(0))
         new_env.sampler.subs = copy.deepcopy(self.__myEnv.sampler.subs)
+        new_env.state = copy.deepcopy(self.__myEnv.state)
 
         next_state, reward, done, info = new_env.step({'advance___i0': action})
         child_node = MonteCarloTreeSearchNode(env = new_env,
                                             action_space = self.__action_space,  
                                             parent=self, 
                                             parent_action={'advance___i0': action})
-        child_node.backpropagate(reward)
+        #child_node.backpropagate(reward)
         self.__children.append(child_node)
         return child_node
     
@@ -113,6 +114,7 @@ class MonteCarloTreeSearchNode():
         current_myEnv = RDDLEnv.RDDLEnv(domain=EnvInfo.get_domain(), 
                             instance=EnvInfo.get_instance(0))
         current_myEnv.sampler.subs = copy.deepcopy(self.__myEnv.sampler.subs)
+        current_myEnv.state = copy.deepcopy(self.__myEnv.state)
 
         final_reward = 0
         for i in range(ROLLOUT_FACTOR):

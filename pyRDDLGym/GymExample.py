@@ -37,7 +37,7 @@ def main(env, inst, method_name=None, episodes=1):
         total_reward = 0
         state = myEnv.reset()
         for step in range(myEnv.horizon):
-            #myEnv.render()
+            myEnv.render()
             action = agent.sample_action(myEnv)
             next_state, reward, done, info = myEnv.step(action)
             total_reward += reward
